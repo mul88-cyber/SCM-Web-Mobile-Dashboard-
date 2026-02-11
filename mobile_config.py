@@ -2,28 +2,48 @@
 Mobile-specific configuration and utilities
 """
 import streamlit as st
-from streamlit_user_agent import streamlit_user_agent
+from streamlit.runtime.scriptrunner import get_script_run_ctx
 
 def is_mobile_device():
-    """Detect if user is on mobile device"""
+    """
+    Deteksi mobile device menggunakan user agent dari request headers
+    Fallback ke query parameter untuk testing
+    """
     try:
-        user_agent = streamlit_user_agent()
-        if user_agent:
-            mobile_keywords = ['Mobile', 'iPhone', 'Android', 'iPad', 'iPod']
-            return any(keyword in user_agent for keyword in mobile_keywords)
-    except:
-        pass
-    return False
+        # Method 1: Check query parameter (untuk testing)
+        query_params = st.query_params
+        if 'mobile' in query_params:
+            return query_params['mobile'].lower() == 'true'
+        
+        # Method 2: Check session state (set by JavaScript)
+        if 'device_type' in st.session_state:
+            return st.session_state.device_type == 'mobile'
+        
+        # Method 3: Try to get from request (advanced)
+        try:
+            ctx = get_script_run_ctx()
+            if ctx and hasattr(ctx, 'request'):
+                user_agent = ctx.request.headers.get('user-agent', '').lower()
+                mobile_keywords = ['mobile', 'iphone', 'android', 'ipad', 'ipod']
+                return any(keyword in user_agent for keyword in mobile_keywords)
+        except:
+            pass
+            
+        # Default: assume desktop
+        return False
+        
+    except Exception:
+        return False
 
 def get_device_type():
     """Get device type for responsive design"""
     try:
-        user_agent = streamlit_user_agent()
-        if user_agent:
-            if 'Mobile' in user_agent and 'iPad' not in user_agent:
-                return 'mobile'
-            elif 'Tablet' in user_agent or 'iPad' in user_agent:
+        if is_mobile_device():
+            # Check query param untuk tablet
+            query_params = st.query_params
+            if 'tablet' in query_params and query_params['tablet'].lower() == 'true':
                 return 'tablet'
+            return 'mobile'
         return 'desktop'
     except:
         return 'desktop'
@@ -101,32 +121,6 @@ def apply_mobile_css():
                 padding: 0.5rem !important;
                 margin: 0.2rem 0 !important;
             }
-            
-            /* Financial cards smaller */
-            .financial-card {
-                padding: 0.8rem !important;
-                margin: 0.3rem 0 !important;
-            }
-            
-            /* Adjust button sizes */
-            .stButton button {
-                width: 100% !important;
-                font-size: 0.9rem !important;
-                padding: 8px 12px !important;
-            }
-            
-            /* Reduce font sizes */
-            h1 { font-size: 1.8rem !important; }
-            h2 { font-size: 1.4rem !important; }
-            h3 { font-size: 1.2rem !important; }
-            h4 { font-size: 1.1rem !important; }
-            p, div, span { font-size: 0.9rem !important; }
-            
-            /* Stack process flow */
-            .process-container {
-                grid-template-columns: 1fr !important;
-                gap: 10px !important;
-            }
         }
         
         /* ============================================
@@ -153,113 +147,48 @@ def apply_mobile_css():
         }
         
         /* ============================================
-           MOBILE-SPECIFIC COMPONENTS
+           DEVICE DETECTION SCRIPT
            ============================================ */
-        .mobile-only {
-            display: none !important;
-        }
-        
-        @media only screen and (max-width: 768px) {
-            .mobile-only {
-                display: block !important;
-            }
+        <script>
+        function detectDevice() {
+            const isMobile = window.innerWidth <= 768;
+            const isTablet = window.innerWidth > 768 && window.innerWidth <= 1024;
             
-            .desktop-only {
-                display: none !important;
-            }
-        }
-        
-        /* Mobile bottom navigation */
-        .mobile-nav {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background: white;
-            border-top: 1px solid #e0e0e0;
-            display: flex;
-            justify-content: space-around;
-            padding: 10px 0;
-            z-index: 1000;
-            display: none;
-        }
-        
-        @media only screen and (max-width: 768px) {
-            .mobile-nav {
-                display: flex;
-            }
+            // Store in session storage for persistence
+            sessionStorage.setItem('isMobile', isMobile);
+            sessionStorage.setItem('isTablet', isTablet);
             
-            /* Add padding to main content for bottom nav */
-            .main .block-container {
-                padding-bottom: 70px !important;
+            // Send to Streamlit via query parameters
+            if (window.parent) {
+                const url = new URL(window.location.href);
+                if (isMobile) {
+                    url.searchParams.set('mobile', 'true');
+                    url.searchParams.delete('tablet');
+                } else if (isTablet) {
+                    url.searchParams.set('tablet', 'true');
+                    url.searchParams.delete('mobile');
+                } else {
+                    url.searchParams.delete('mobile');
+                    url.searchParams.delete('tablet');
+                }
+                
+                // Update URL without reload
+                window.history.replaceState({}, '', url);
+                
+                // Trigger Streamlit to re-run with new params
+                if (window.parent.streamlitDebug) {
+                    window.parent.location.reload();
+                }
             }
         }
         
-        .mobile-nav-item {
-            text-align: center;
-            color: #666;
-            flex: 1;
-            padding: 5px;
-        }
+        // Run on load and resize
+        window.addEventListener('load', detectDevice);
+        window.addEventListener('resize', detectDevice);
         
-        .mobile-nav-item.active {
-            color: #667eea;
-            font-weight: bold;
-        }
-        
-        .mobile-nav-icon {
-            font-size: 1.2rem;
-            display: block;
-            margin-bottom: 2px;
-        }
-        
-        /* Mobile-friendly tooltips */
-        @media only screen and (max-width: 768px) {
-            .stTooltip {
-                font-size: 0.8rem !important;
-                max-width: 200px !important;
-            }
-        }
-        
-        /* Touch-friendly buttons */
-        @media (hover: none) and (pointer: coarse) {
-            button, [role="button"], .stButton button {
-                min-height: 44px !important;
-                min-width: 44px !important;
-            }
-            
-            /* Larger touch targets */
-            [data-testid="stMetricValue"] {
-                font-size: 1.4rem !important;
-            }
-        }
-        
-        /* PWA (Progressive Web App) styles */
-        @media (display-mode: standalone) {
-            header {
-                display: none;
-            }
-            
-            .main .block-container {
-                padding-top: 0.5rem !important;
-            }
-        }
-        
-        /* Dark mode support for mobile */
-        @media (prefers-color-scheme: dark) {
-            .mobile-nav {
-                background: #1e1e1e;
-                border-top-color: #333;
-            }
-            
-            .mobile-nav-item {
-                color: #aaa;
-            }
-            
-            .mobile-nav-item.active {
-                color: #667eea;
-            }
-        }
+        // Initial detection
+        detectDevice();
+        </script>
     </style>
     """
     return mobile_css
