@@ -9,7 +9,6 @@ google-auth-oauthlib
 google-auth-httplib2
 tenacity
 python-dateutil
-streamlit-user-agent
 streamlit-option-menu
 streamlit-extras
 Pillow
