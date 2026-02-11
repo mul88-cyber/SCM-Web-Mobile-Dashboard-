@@ -13,4 +13,3 @@ streamlit-user-agent
 streamlit-option-menu
 streamlit-extras
 Pillow
-streamlit-extras
